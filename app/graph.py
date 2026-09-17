@@ -63,3 +63,10 @@ async def run_turn(session_id: str, message: str) -> str:
     graph = get_graph()
     result = await graph.ainvoke({"session_id": session_id, "message": message})
     return result["response"]
+
+
+async def run_turn_full(session_id: str, message: str) -> dict:
+    """Like run_turn but returns the whole final state, not just the reply
+    text. Used by evals that need to assert on matched_ids / weather_error."""
+    graph = get_graph()
+    return await graph.ainvoke({"session_id": session_id, "message": message})
