@@ -54,11 +54,15 @@ def mocked_weather(city: str, facts: dict):
 
 
 @contextmanager
-def broken_weather():
-    async def fake_get_weather_for_city(_city):
+def forecast_api_down():
+    """Geocoding still runs for real — this isolates the forecast call
+    failing after a location was successfully resolved, distinct from
+    geocoding itself returning nothing."""
+
+    async def fake_fetch_forecast(_lat, _lon):
         raise WeatherError("connection to forecast service timed out")
 
-    with patch("app.nodes.weather_node.get_weather_for_city", fake_get_weather_for_city):
+    with patch("app.weather.fetch_forecast", fake_fetch_forecast):
         yield
 
 
@@ -83,7 +87,9 @@ async def _run_clear_match_cycling():
         return False, f"expected cycling_high_wind in matched_ids, got {matched}"
     if "45" not in state["response"]:
         return False, f"response doesn't cite the real wind number: {state['response']!r}"
-    return True, f"matched {matched}, response cites 45 km/h wind"
+    if "cycling_high_wind" not in state["response"]:
+        return False, f"matched SOP id doesn't appear in the visible reply: {state['response']!r}"
+    return True, f"matched {matched}, response cites 45 km/h wind and the SOP id"
 
 
 async def _run_clear_match_heat():
@@ -100,7 +106,9 @@ async def _run_clear_match_heat():
     matched = state.get("matched_ids", [])
     if "vulnerable_heat_exposure" not in matched:
         return False, f"expected vulnerable_heat_exposure in matched_ids, got {matched}"
-    return True, f"matched {matched}"
+    if "vulnerable_heat_exposure" not in state["response"]:
+        return False, f"matched SOP id doesn't appear in the visible reply: {state['response']!r}"
+    return True, f"matched {matched}, SOP id visible in reply"
 
 
 async def _run_paraphrase_picnic():
@@ -184,12 +192,27 @@ async def _run_no_sop_applies():
     return True, "no SOP matched, response says so honestly instead of inventing advice"
 
 
-async def _run_weather_failure():
-    with broken_weather():
+async def _run_forecast_api_down():
+    """Failure mode 1 of 2: geocoding succeeds, the forecast call itself fails."""
+    with forecast_api_down():
         state = await run_turn_full(_new_session(), "Is it safe to cycle in Denver today?")
 
     if not state.get("weather_error"):
         return False, "expected weather_error to be set"
+    if "couldn't get live weather data" not in state["response"]:
+        return False, f"response doesn't honestly report the failure: {state['response']!r}"
+    return True, f"weather_error handled honestly: {state['weather_error']!r}"
+
+
+async def _run_geocode_not_found():
+    """Failure mode 2 of 2: geocoding itself finds nothing for the given
+    location — a real call against a nonsense place name, not mocked."""
+    state = await run_turn_full(
+        _new_session(), "Is it safe to cycle in zzzznotarealplacexyz1234 today?"
+    )
+
+    if not state.get("weather_error"):
+        return False, "expected weather_error to be set for an unresolvable location"
     if "couldn't get live weather data" not in state["response"]:
         return False, f"response doesn't honestly report the failure: {state['response']!r}"
     return True, f"weather_error handled honestly: {state['weather_error']!r}"
@@ -257,9 +280,14 @@ CASES = [
         _run_no_sop_applies,
     ),
     EvalCase(
-        "weather_api_unreachable",
-        "forced weather API failure — bot must fail honestly, not guess",
-        _run_weather_failure,
+        "forecast_api_down",
+        "geocoding succeeds, forced forecast API failure — bot must fail honestly, not guess",
+        _run_forecast_api_down,
+    ),
+    EvalCase(
+        "geocode_not_found",
+        "geocoding itself finds nothing for a nonsense location — distinct failure mode from forecast being down",
+        _run_geocode_not_found,
     ),
     EvalCase(
         "adversarial_prompt_injection",

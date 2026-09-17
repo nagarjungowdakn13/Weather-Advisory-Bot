@@ -6,12 +6,13 @@ from app.state import GraphState
 
 _SOPS = {s.id: s for s in load_policies()}
 
-SYSTEM_PROMPT = """You write the final reply for a weather-safety assistant. You are only \
-allowed to handle phrasing and tone. The facts block and policy guidance given to you below \
-are the complete and final set of numbers and advice — do not add, remove, round differently, \
-or invent any number, and do not reference any policy not listed. Lead with the primary \
-policy's guidance; mention secondary policies briefly afterward if there are any. Keep it to \
-a short, direct paragraph or two, like a person texting back a straight answer, not a report."""
+SYSTEM_PROMPT = """You write the advice paragraph of a reply for a weather-safety assistant. \
+You are only allowed to handle phrasing and tone. The facts block and policy guidance given to \
+you below are the complete and final set of numbers and advice — do not add, remove, round \
+differently, or invent any number, and do not reference any policy not listed. Lead with the \
+primary policy's guidance; mention secondary policies briefly afterward if there are any. Keep \
+it to a short, direct paragraph or two, like a person texting back a straight answer, not a \
+report. Do not add a citation or source list yourself — that gets appended separately."""
 
 
 def _facts_summary(facts: dict) -> str:
@@ -53,14 +54,25 @@ def _source_numbers(facts: dict, ranked_sops) -> set[str]:
     return numbers
 
 
-def _deterministic_reply(location_name: str, facts_summary: str, ranked_sops) -> str:
+def _deterministic_body(location_name: str, facts_summary: str, ranked_sops) -> str:
     primary = ranked_sops[0]
-    lines = [f"For {location_name}: {facts_summary}.", "", primary.guidance, f"({primary.citation_note})"]
+    lines = [f"For {location_name}: {facts_summary}.", "", primary.guidance]
     if len(ranked_sops) > 1:
         lines.append("")
         lines.append("Also worth noting:")
         for s in ranked_sops[1:]:
-            lines.append(f"- {s.guidance} ({s.citation_note})")
+            lines.append(f"- {s.guidance}")
+    return "\n".join(lines)
+
+
+def _citation_footer(ranked_sops) -> str:
+    """Built entirely in code so SOP citation is guaranteed to appear in
+    the visible reply regardless of what the LLM did with phrasing — same
+    reasoning as never trusting the LLM to restate facts."""
+    primary = ranked_sops[0]
+    lines = [f"Source: {primary.id} ({primary.severity}) — {primary.citation_note}"]
+    for s in ranked_sops[1:]:
+        lines.append(f"Also: {s.id} ({s.severity}) — {s.citation_note}")
     return "\n".join(lines)
 
 
@@ -77,7 +89,8 @@ async def compose(state: GraphState) -> dict:
     location_name = f"{location['name']}, {location['country']}" if location.get("country") else location["name"]
     facts_summary = _facts_summary(facts)
 
-    deterministic = _deterministic_reply(location_name, facts_summary, ranked_sops)
+    deterministic_body = _deterministic_body(location_name, facts_summary, ranked_sops)
+    citation_footer = _citation_footer(ranked_sops)
 
     policy_block = "\n\n".join(
         f"[{'PRIMARY' if s is ranked_sops[0] else 'secondary'}] {s.id} (severity: {s.severity})\n"
@@ -101,6 +114,6 @@ async def compose(state: GraphState) -> dict:
     # allow small integers that are likely not measurements (e.g. "30 minutes", list markers)
     drifted = {n for n in drifted if len(n) > 1 or n not in {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}}
 
-    response = phrased.strip() if not drifted else deterministic
+    body = phrased.strip() if not drifted else deterministic_body
 
-    return {"response": response}
+    return {"response": f"{body}\n\n{citation_footer}"}
