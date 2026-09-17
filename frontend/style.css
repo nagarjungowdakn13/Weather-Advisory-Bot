@@ -1,0 +1,94 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0d0f12;
+  color: #d8e0d8;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 14px;
+}
+
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+
+header {
+  color: #6fdc8c;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #222;
+  margin-bottom: 12px;
+}
+
+.prompt {
+  color: #6fdc8c;
+  margin-right: 6px;
+}
+
+#scrollback {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 12px;
+}
+
+.turn {
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.turn.user {
+  color: #9fd3ff;
+}
+
+.turn.user::before {
+  content: "you  ";
+  color: #4f7ea8;
+}
+
+.turn.assistant::before {
+  content: "bot  ";
+  color: #4f9a63;
+}
+
+.turn.system {
+  color: #8a8f98;
+  font-style: italic;
+}
+
+.turn.pending::before {
+  content: "bot  ";
+  color: #4f9a63;
+}
+
+.turn.pending {
+  color: #6b7280;
+}
+
+#composer {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid #222;
+  padding-top: 12px;
+}
+
+#input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #d8e0d8;
+  font: inherit;
+}
+
+#input:disabled {
+  opacity: 0.5;
+}
