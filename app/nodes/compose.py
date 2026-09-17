@@ -117,3 +117,103 @@ async def compose(state: GraphState) -> dict:
     body = phrased.strip() if not drifted else deterministic_body
 
     return {"response": f"{body}\n\n{citation_footer}"}
+
+
+# --- evaluated-but-not-triggered path -------------------------------------
+# A topically relevant SOP exists and was checked against real numbers, but
+# conditions are safely under its threshold. Distinct from "no policy covers
+# this at all" (no_guidance) - see fallback.py and the sop_match status.
+
+FIELD_LABELS = {
+    "temperature_2m": "temperature",
+    "wind_speed_10m": "wind speed",
+    "wind_gusts_10m": "wind gusts",
+    "precipitation": "precipitation",
+    "uv_index": "UV index",
+    "relative_humidity_2m": "humidity",
+    "temperature_2m_max": "today's high",
+    "temperature_2m_min": "today's low",
+    "precipitation_probability_max": "rain chance today",
+    "uv_index_max": "today's peak UV index",
+    "wind_speed_10m_max": "today's peak wind speed",
+}
+FIELD_UNITS = {
+    "temperature_2m": "°C",
+    "wind_speed_10m": "km/h",
+    "wind_gusts_10m": "km/h",
+    "precipitation": "mm",
+    "uv_index": "",
+    "relative_humidity_2m": "%",
+    "temperature_2m_max": "°C",
+    "temperature_2m_min": "°C",
+    "precipitation_probability_max": "%",
+    "uv_index_max": "",
+    "wind_speed_10m_max": "km/h",
+}
+OP_WORDS = {">": "above", ">=": "at or above", "<": "below", "<=": "at or below", "==": "equal to"}
+
+
+def _condition_clause(cond, facts: dict) -> str:
+    label = FIELD_LABELS.get(cond.field, cond.field)
+    unit = FIELD_UNITS.get(cond.field, "")
+    actual = facts.get(cond.field)
+    return f"{label} is {actual}{unit} (threshold to trigger: {OP_WORDS.get(cond.operator, cond.operator)} {cond.value}{unit})"
+
+
+SYSTEM_PROMPT_NO_TRIGGER = """You write the advice paragraph of a reply for a weather-safety \
+assistant, for the specific case where a real policy exists and was checked, but current \
+conditions are safely under its threshold — so no advisory applies. You are only allowed to \
+handle phrasing and tone. The facts and threshold comparison given to you below are the \
+complete and final set of numbers — do not add, remove, round differently, or invent any \
+number, and do not reference any policy not listed. State plainly that conditions are within \
+the safe range and no advisory applies right now. Do not say there's no policy or no coverage \
+for this topic — there is a policy, it simply isn't triggered by today's numbers. Keep it to \
+one short, direct paragraph, like a person texting back a straight answer. Do not add a \
+citation or source list yourself — that gets appended separately."""
+
+
+def _deterministic_no_trigger_body(location_name: str, primary, clause_text: str) -> str:
+    topic = primary.category.replace("_", " ")
+    return (
+        f"For {location_name}: {clause_text}. Conditions are within the safe range for "
+        f"{topic} — no {primary.severity} advisory applies right now."
+    )
+
+
+async def compose_no_trigger(state: GraphState) -> dict:
+    relevant_ids = state.get("relevant_not_triggered_ids", [])
+    ranked_sops = sorted(
+        (_SOPS[i] for i in relevant_ids if i in _SOPS),
+        key=lambda s: SEVERITY_ORDER[s.severity],
+        reverse=True,
+    )
+
+    facts = state["facts"]
+    location = state["location"]
+    location_name = f"{location['name']}, {location['country']}" if location.get("country") else location["name"]
+    primary = ranked_sops[0]
+    clause_text = "; ".join(_condition_clause(c, facts) for c in primary.trigger.conditions)
+
+    deterministic_body = _deterministic_no_trigger_body(location_name, primary, clause_text)
+    citation_footer = _citation_footer(ranked_sops)
+
+    user_prompt = (
+        f"User's question: {state['message']}\n"
+        f"Location: {location_name}\n"
+        f"Policy evaluated: {primary.id} (category: {primary.category}, severity: {primary.severity})\n"
+        f"Condition check: {clause_text}\n"
+        f"This policy's guidance if it had triggered (context only, do not present as current advice): "
+        f"{primary.guidance}"
+    )
+
+    client = get_llm_client()
+    phrased = await client.complete(SYSTEM_PROMPT_NO_TRIGGER, user_prompt, max_tokens=400)
+
+    source_numbers = _source_numbers(facts, ranked_sops)
+    phrased_numbers = _extract_numbers(phrased)
+    drifted = phrased_numbers - source_numbers
+    drifted = {n for n in drifted if len(n) > 1 or n not in {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}}
+
+    body = phrased.strip() if not drifted else deterministic_body
+
+    return {"response": f"{body}\n\n{citation_footer}"}

@@ -147,6 +147,39 @@ async def _run_paraphrase_cycling():
     return True, f"matched {matched} without the words 'cycling' or 'wind' in the question"
 
 
+async def _run_evaluated_no_trigger():
+    """A topically relevant SOP exists (cycling_high_wind) and gets
+    evaluated, but wind is safely under its threshold. This must be
+    reported distinctly from 'no policy covers this at all' — the bot
+    should say conditions are fine, not that it lacks coverage."""
+    with mocked_weather("Denver", {
+        "temperature_2m": 18, "wind_speed_10m": 19.2, "wind_gusts_10m": 20.5,
+        "precipitation": 0, "uv_index": 3, "relative_humidity_2m": 40,
+        "temperature_2m_max": 20, "temperature_2m_min": 10,
+        "precipitation_probability_max": 10, "uv_index_max": 4, "wind_speed_10m_max": 21,
+    }):
+        state = await run_turn_full(_new_session(), "is it safe to cycle in Denver today?")
+
+    if state.get("sop_match_status") != "evaluated_no_trigger":
+        return False, f"expected sop_match_status 'evaluated_no_trigger', got {state.get('sop_match_status')!r}"
+    if state.get("matched_ids"):
+        return False, f"expected no triggered SOPs, got matched_ids={state['matched_ids']}"
+    if "cycling_high_wind" not in state.get("relevant_not_triggered_ids", []):
+        return False, f"expected cycling_high_wind in relevant_not_triggered_ids, got {state.get('relevant_not_triggered_ids')}"
+
+    response = state["response"]
+    if "don't have a policy covering this" in response:
+        return False, f"collapsed into the wrong fallback message: {response!r}"
+    if "19.2" not in response:
+        return False, f"response doesn't cite the real wind number: {response!r}"
+    if "30" not in response:
+        return False, f"response doesn't cite the real threshold: {response!r}"
+    if "cycling_high_wind" not in response:
+        return False, f"response doesn't cite the evaluated SOP id: {response!r}"
+
+    return True, "correctly distinguished 'evaluated, safely under threshold' from 'no coverage at all'"
+
+
 async def _run_live_weather_smoke_test():
     from app.policies import candidate_sops
     from app.weather import extract_facts, get_weather_for_city
@@ -268,6 +301,11 @@ CASES = [
         "paraphrase_cycling",
         "paraphrased cycling question, never uses 'cycling' or 'wind'",
         _run_paraphrase_cycling,
+    ),
+    EvalCase(
+        "evaluated_no_trigger",
+        "topically relevant SOP evaluated but conditions safely under threshold — distinct from no-coverage",
+        _run_evaluated_no_trigger,
     ),
     EvalCase(
         "live_weather_smoke_test",

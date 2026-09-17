@@ -20,6 +20,8 @@ class GraphState(TypedDict, total=False):
 
     candidate_ids: list[str]
     matched_ids: list[str]
+    relevant_not_triggered_ids: list[str]
+    sop_match_status: str  # "matched" | "evaluated_no_trigger" | "not_applicable"
     matched_reasoning: str
 
     response: str

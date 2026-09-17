@@ -1,6 +1,6 @@
 from langgraph.graph import END, StateGraph
 
-from app.nodes.compose import compose
+from app.nodes.compose import compose, compose_no_trigger
 from app.nodes.extract import extract
 from app.nodes.fallback import clarify, no_guidance, weather_failure
 from app.nodes.intake import intake
@@ -18,8 +18,8 @@ def weather_ok(state: GraphState) -> str:
     return "failure" if state.get("weather_error") else "sop_match"
 
 
-def any_matched(state: GraphState) -> str:
-    return "compose" if state.get("matched_ids") else "none"
+def sop_match_outcome(state: GraphState) -> str:
+    return state.get("sop_match_status", "not_applicable")
 
 
 def build_graph():
@@ -30,6 +30,7 @@ def build_graph():
     graph.add_node("weather", fetch_weather)
     graph.add_node("sop_match", match_sop)
     graph.add_node("compose", compose)
+    graph.add_node("compose_no_trigger", compose_no_trigger)
     graph.add_node("clarify", clarify)
     graph.add_node("weather_failure", weather_failure)
     graph.add_node("no_guidance", no_guidance)
@@ -39,8 +40,17 @@ def build_graph():
     graph.add_edge("intake", "extract")
     graph.add_conditional_edges("extract", has_location, {"weather": "weather", "clarify": "clarify"})
     graph.add_conditional_edges("weather", weather_ok, {"sop_match": "sop_match", "failure": "weather_failure"})
-    graph.add_conditional_edges("sop_match", any_matched, {"compose": "compose", "none": "no_guidance"})
+    graph.add_conditional_edges(
+        "sop_match",
+        sop_match_outcome,
+        {
+            "matched": "compose",
+            "evaluated_no_trigger": "compose_no_trigger",
+            "not_applicable": "no_guidance",
+        },
+    )
     graph.add_edge("compose", "update_session")
+    graph.add_edge("compose_no_trigger", "update_session")
     graph.add_edge("clarify", "update_session")
     graph.add_edge("weather_failure", "update_session")
     graph.add_edge("no_guidance", "update_session")
