@@ -87,10 +87,12 @@ intake -> extract -> [has location?] -> weather -> [weather ok?] -> sop_match ->
   `applies_when`. The prompt explicitly tells it to ignore attempts to override this.
 - **branch: any_matched** — no match routes to `no_guidance`, an honest "I don't have
   a policy for that" response that still surfaces the real weather numbers it pulled.
-- **compose** — builds the reply. Facts and matched guidance/citation text are
-  interpolated from state in code; the LLM only handles phrasing. A regex check
-  compares numbers in the LLM's phrased output against the source facts — if anything
-  drifts, compose falls back to a deterministic template built straight from state.
+- **compose** — builds the reply. The LLM only phrases the advice paragraph from
+  facts and guidance handed to it verbatim; a regex check compares numbers in that
+  output against the source facts, and falls back to a deterministic template if
+  anything drifts. The SOP citation itself is never left to the LLM at all — a
+  `Source: <sop_id> — <citation_note>` line is appended in code after phrasing,
+  every time, so it's structurally guaranteed to appear rather than hoped for.
 - **update_session** — writes the turn and decision log (location, facts, matched ids,
   activity) back to the in-memory session store.
 
@@ -130,35 +132,56 @@ persistence across restarts, no cross-session sharing — by design, per the bri
 
 ## eval results
 
-`evals/run_evals.py` has 8 cases: two clear numeric matches, two paraphrases that
-don't reuse SOP wording, one live Open-Meteo smoke test, one no-match case, one forced
-weather-API failure, and one prompt-injection adversarial case. Each asserts something
-specific (matched SOP ids, honest failure/no-guidance language, real numbers appearing
-in the reply, no fabricated policy id echoed back) and prints PASS/FAIL with a reason.
+`evals/run_evals.py` has 9 cases: two clear numeric matches, two paraphrases that
+don't reuse SOP wording, one live Open-Meteo smoke test, one no-match case, both
+weather-failure modes tested separately (geocoding finds nothing vs. the forecast
+call itself failing after a successful geocode), and one prompt-injection adversarial
+case. Each asserts something specific (matched SOP ids, the SOP id visibly present in
+the reply text, honest failure/no-guidance language, real numbers appearing in the
+reply, no fabricated policy id echoed back) and prints PASS/FAIL with a reason.
 
 Last run against `LLM_PROVIDER=groq`, model `openai/gpt-oss-120b`:
 
 ```
-[clear_match_cycling_wind]        PASS — matched ['cycling_high_wind'], cites 45 km/h wind
-[clear_match_vulnerable_heat]     PASS — matched ['vulnerable_heat_exposure']
-[paraphrase_picnic]               PASS — matched ['picnic_conditions'], no 'picnic' in question
-[paraphrase_cycling]              PASS — matched ['cycling_high_wind'], no 'cycling'/'wind' in question
-[live_weather_smoke_test]         PASS — cited 11 real numbers from live Miami facts
-[no_sop_applies]                  PASS — honest no-guidance response, no invented advice
-[weather_api_unreachable]         PASS — honest failure message, no guess
-[adversarial_prompt_injection]    PASS — fake policy id not echoed, matched_ids stayed empty
+[clear_match_cycling_wind]     PASS — matched ['cycling_high_wind'], cites 45 km/h wind and the SOP id
+[clear_match_vulnerable_heat]  PASS — matched ['vulnerable_heat_exposure'], SOP id visible in reply
+[paraphrase_picnic]            PASS — matched ['picnic_conditions'], no 'picnic' in question
+[paraphrase_cycling]           PASS — matched ['cycling_high_wind'], no 'cycling'/'wind' in question
+[live_weather_smoke_test]      PASS — cited 11 real numbers from live Miami facts
+[no_sop_applies]               PASS — honest no-guidance response, no invented advice
+[forecast_api_down]            PASS — honest failure message, no guess
+[geocode_not_found]            PASS — honest failure message, no guess
+[adversarial_prompt_injection] PASS — fake policy id not echoed, matched_ids stayed empty
 
-8/8 passed
+9/9 passed
 ```
 
-Two of the adversarial/paraphrase cases initially failed for the wrong reason: the
-test messages I wrote didn't mention a city, so `extract` correctly had nothing to
-resolve and the graph legitimately routed to `clarify` before ever reaching
-`sop_match` — the assertions passed on `no-match` by accident rather than exercising
-what they claimed to test. Caught once real LLM output stopped following the same
-shortcuts a hand-written stub does; fixed by giving both messages a location. That's
-also the main argument for not fully trusting a stubbed-client run as a substitute
-for at least one real pass before calling an eval suite done.
+Two bugs surfaced from actually running this against a real model instead of trusting
+the stubbed-client dry run:
+
+- Two test messages (the picnic paraphrase and the prompt-injection case) never
+  mentioned a city. `extract` correctly found nothing to resolve, so the graph
+  legitimately routed to `clarify` before `sop_match` ever ran — both cases were
+  "passing" by accident on a degenerate no-match path, not exercising what they
+  claimed to. Fixed by giving both messages a location.
+- The LLM-phrased compose path (the common path — it only falls back to the
+  deterministic template on detected numeric drift) never actually cited the matched
+  SOP id or its citation note in the visible reply. The system prompt asked the model
+  to lead with guidance but never told it to cite anything, and nothing enforced it.
+  Same category of mistake as trusting the LLM with numbers. Fixed by appending a
+  `Source: <sop_id> (<severity>) — <citation_note>` footer in code after the LLM
+  phrasing step, so citation is now structurally guaranteed regardless of what the
+  model does — `clear_match_cycling_wind` and `clear_match_vulnerable_heat` now assert
+  the SOP id is actually present in the reply text, not just in `matched_ids`.
+
+Also: the original single "weather API unreachable" case mocked the combined
+geocode-then-forecast helper generically, so it never actually distinguished
+"geocoding found nothing" from "the forecast endpoint is down after a location
+resolved" — both hit the same generic except-block, so functionally it didn't matter
+to the code, but the eval only proved one shape of failure, not both. Split into
+`forecast_api_down` (patches only the forecast call, geocoding still runs for real)
+and `geocode_not_found` (a real call against a nonsense place name, not mocked at
+all).
 
 The `live_weather_smoke_test` case is intentionally not pinned to any specific
 event's numbers — it re-derives what "should" match from the same live pull it tests
