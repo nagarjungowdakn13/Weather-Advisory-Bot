@@ -1,0 +1,19 @@
+id: vulnerable_heat_exposure
+category: vulnerable_groups
+severity: high
+trigger:
+  conditions:
+    - field: temperature_2m_max
+      operator: ">="
+      value: 35
+  applies_when: >
+    The user is asking about taking children, elderly people, or anyone with
+    a health condition outside during very hot conditions.
+guidance: >
+  Temperatures this high put children, older adults, and anyone with
+  cardiovascular or respiratory conditions at real risk of heat illness. Keep
+  outdoor time under 20 minutes, stay in shade, and carry water. Consider
+  postponing to a cooler part of the day.
+citation_note: >
+  Fires when temperature_2m_max reaches 35°C or higher, which raises
+  heat-illness risk for vulnerable groups.

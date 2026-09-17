@@ -1,0 +1,17 @@
+id: evening_outdoor_gathering
+category: leisure
+severity: advisory
+trigger:
+  conditions: []
+  applies_when: >
+    The user is asking about an evening outdoor activity like a barbecue,
+    bonfire, or stargazing. This depends mostly on calm wind and dry
+    conditions, not on daytime heat or UV since the sun is down by then.
+guidance: >
+  Evening outdoor plans mostly hinge on wind and rain, not UV or daytime
+  heat. Light wind and a low chance of precipitation make for a comfortable
+  evening outside; if wind is picking up, plan a windbreak or move things
+  closer to shelter.
+citation_note: >
+  Matched on judgment, not a threshold: the described emphasis on wind and
+  rain over UV or heat is what defines evening suitability.

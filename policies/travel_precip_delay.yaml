@@ -1,0 +1,16 @@
+id: travel_precip_delay
+category: travel
+severity: advisory
+trigger:
+  conditions:
+    - field: precipitation_probability_max
+      operator: ">="
+      value: 60
+  applies_when: >
+    The user is asking about traveling, driving, or commuting on a day with
+    a high chance of rain that could affect road conditions or visibility.
+guidance: >
+  There's a strong chance of rain today. Build in extra travel time, keep
+  headlights on, and increase following distance on the road.
+citation_note: >
+  Fires when precipitation_probability_max is 60% or higher for the day.

@@ -1,0 +1,19 @@
+id: vulnerable_cold_exposure
+category: vulnerable_groups
+severity: caution
+trigger:
+  conditions:
+    - field: temperature_2m_min
+      operator: "<="
+      value: 0
+  applies_when: >
+    The user is asking about taking elderly people, infants, or anyone with
+    circulation issues outside when the day's low temperature drops to
+    freezing or below.
+guidance: >
+  Temperatures are at or below freezing. Limit outdoor exposure for infants
+  and elderly individuals to short trips, dress in layers with hats and
+  gloves, and watch for signs of hypothermia like shivering that stops or
+  confusion.
+citation_note: >
+  Fires when temperature_2m_min is 0°C or lower for the day.

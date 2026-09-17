@@ -1,0 +1,18 @@
+id: cycling_high_wind
+category: outdoor_exercise
+severity: caution
+trigger:
+  conditions:
+    - field: wind_speed_10m
+      operator: ">"
+      value: 30
+  applies_when: >
+    The user is asking about cycling, biking, or riding outdoors, and current
+    wind speed is strong enough to make handling a bike difficult or unsafe,
+    especially in gusty conditions.
+guidance: >
+  Hold off on cycling until wind speeds drop below 30 km/h, or stick to routes
+  sheltered from open crosswinds. Sustained wind above this threshold makes
+  steering and braking unpredictable, especially on road and gravel bikes.
+citation_note: >
+  Fires when wind_speed_10m exceeds 30 km/h at the resolved location.

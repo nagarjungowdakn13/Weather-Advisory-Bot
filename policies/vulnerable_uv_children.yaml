@@ -1,0 +1,17 @@
+id: vulnerable_uv_children
+category: vulnerable_groups
+severity: caution
+trigger:
+  conditions:
+    - field: uv_index_max
+      operator: ">="
+      value: 9
+  applies_when: >
+    The user is asking about taking children or infants outside on a day
+    with extreme UV exposure.
+guidance: >
+  UV is at extreme levels today. Infants under 6 months should stay out of
+  direct sun entirely; older children need hats, SPF 50, and shade breaks
+  every 30-40 minutes.
+citation_note: >
+  Fires when uv_index_max is 9 or higher for the day.

@@ -1,0 +1,17 @@
+id: travel_high_wind
+category: travel
+severity: caution
+trigger:
+  conditions:
+    - field: wind_gusts_10m
+      operator: ">"
+      value: 50
+  applies_when: >
+    The user is asking about travel, driving, or flights, and current wind
+    gusts are strong enough to affect vehicle stability or flight operations.
+guidance: >
+  Wind gusts are strong enough to push high-sided vehicles and make bridge
+  crossings uncomfortable. If you're flying, check for delays; if driving,
+  keep a firm grip on the wheel and avoid exposed routes if you can.
+citation_note: >
+  Fires when wind_gusts_10m exceeds 50 km/h at the resolved location.

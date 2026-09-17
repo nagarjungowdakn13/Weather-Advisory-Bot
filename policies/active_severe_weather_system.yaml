@@ -1,0 +1,37 @@
+id: active_severe_weather_system
+category: severe_weather
+severity: high
+trigger:
+  conditions:
+    - field: wind_gusts_10m
+      operator: ">"
+      value: 55
+    - field: wind_speed_10m
+      operator: ">"
+      value: 40
+    - field: precipitation
+      operator: ">"
+      value: 8
+    - field: precipitation_probability_max
+      operator: ">="
+      value: 85
+    - field: uv_index
+      operator: ">="
+      value: 10
+  match: 2
+  applies_when: >
+    Multiple weather signals at the resolved location are elevated at the
+    same time (strong wind, heavy rain, or extreme UV occurring together),
+    which points to an active, significant weather system rather than
+    routine conditions for the day. This is about the pattern of several
+    numbers being unusually high together, not any single reading.
+guidance: >
+  Conditions right now point to an active weather system affecting this
+  location — lead with this before anything else. Stay indoors where you
+  can, avoid unnecessary travel, secure loose outdoor objects, and hold off
+  on outdoor plans entirely until conditions ease.
+citation_note: >
+  Fires when at least 2 of 5 monitored signals (wind gusts, sustained wind,
+  precipitation, rain probability, UV) are simultaneously at elevated
+  levels, indicating a currently active system rather than one high reading
+  in isolation.

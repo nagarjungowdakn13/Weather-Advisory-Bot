@@ -1,0 +1,19 @@
+id: picnic_conditions
+category: leisure
+severity: advisory
+trigger:
+  conditions: []
+  applies_when: >
+    The user is asking whether today or a given day is good for a picnic,
+    outdoor gathering, or relaxing outside. This depends on a comfortable
+    mix of mild temperature, low rain chance, light wind, and no extreme UV
+    all together — no single number decides it on its own.
+guidance: >
+  A good picnic day is mild (roughly 18-27°C), has a low chance of rain,
+  light wind, and moderate or lower UV. If today's numbers land in that
+  range, it's a solid day to go; if one factor is off — a high rain chance
+  or strong wind — plan around it specifically, like bringing a windbreak
+  or choosing a shaded spot.
+citation_note: >
+  Matched on judgment, not a threshold: the described mix of mild temp, low
+  rain, and light wind is what defines a good picnic day.

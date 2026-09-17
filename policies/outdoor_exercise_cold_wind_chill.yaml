@@ -1,0 +1,22 @@
+id: outdoor_exercise_cold_wind_chill
+category: outdoor_exercise
+severity: caution
+trigger:
+  conditions:
+    - field: temperature_2m
+      operator: "<"
+      value: 2
+    - field: wind_speed_10m
+      operator: ">"
+      value: 15
+  match: all
+  applies_when: >
+    The user is asking about running or outdoor exercise in cold, windy
+    conditions where wind chill materially lowers the effective temperature.
+guidance: >
+  Effective temperature is well below freezing once wind chill is factored
+  in. Layer up, cover extremities, and consider shortening your session —
+  exposed skin is at frostbite risk in prolonged cold wind.
+citation_note: >
+  Fires when temperature_2m is below 2°C combined with wind_speed_10m above
+  15 km/h.

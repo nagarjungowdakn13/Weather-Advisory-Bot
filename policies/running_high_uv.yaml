@@ -1,0 +1,18 @@
+id: running_high_uv
+category: outdoor_exercise
+severity: advisory
+trigger:
+  conditions:
+    - field: uv_index
+      operator: ">="
+      value: 8
+  applies_when: >
+    The user is asking about running, jogging, or exercising outdoors during
+    a period with very high UV index.
+guidance: >
+  UV index is in the very high range. Run early morning or evening, wear
+  SPF 30+ sunscreen, and cover exposed skin if you have to be out during
+  midday hours.
+citation_note: >
+  Fires when uv_index is 8 or higher, which is the "very high" exposure
+  bracket.
