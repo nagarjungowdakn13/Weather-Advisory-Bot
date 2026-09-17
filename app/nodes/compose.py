@@ -37,13 +37,19 @@ def _extract_numbers(text: str) -> set[str]:
     return set(re.findall(r"-?\d+\.?\d*", text))
 
 
-def _source_numbers(facts: dict) -> set[str]:
+def _source_numbers(facts: dict, ranked_sops) -> set[str]:
+    """Numbers the LLM is allowed to use: live facts, plus any numbers
+    already present in the matched policies' own guidance/citation text
+    (thresholds a policy explains itself with aren't drift)."""
     numbers = set()
     for v in facts.values():
         if isinstance(v, (int, float)):
             numbers.add(str(v))
             numbers.add(str(int(v)) if float(v).is_integer() else str(v))
             numbers.add(f"{v:.0f}")
+    for s in ranked_sops:
+        numbers |= _extract_numbers(s.guidance)
+        numbers |= _extract_numbers(s.citation_note)
     return numbers
 
 
@@ -89,7 +95,7 @@ async def compose(state: GraphState) -> dict:
     client = get_llm_client()
     phrased = await client.complete(SYSTEM_PROMPT, user_prompt, max_tokens=500)
 
-    source_numbers = _source_numbers(facts)
+    source_numbers = _source_numbers(facts, ranked_sops)
     phrased_numbers = _extract_numbers(phrased)
     drifted = phrased_numbers - source_numbers
     # allow small integers that are likely not measurements (e.g. "30 minutes", list markers)
