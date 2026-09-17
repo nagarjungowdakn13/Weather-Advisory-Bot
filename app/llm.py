@@ -30,13 +30,30 @@ class AnthropicClient(LLMClient):
 
 
 class OpenAIClient(LLMClient):
-    def __init__(self, api_key: str, model: str):
+    """Also used for Groq and any other OpenAI-compatible chat completions
+    API — just pass a different base_url."""
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        base_url: str | None = None,
+        reasoning_effort: str | None = None,
+    ):
         from openai import AsyncOpenAI
 
-        self._client = AsyncOpenAI(api_key=api_key)
+        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         self._model = model
+        self._reasoning_effort = reasoning_effort
 
     async def complete(self, system: str, user: str, max_tokens: int = 1024) -> str:
+        kwargs = {}
+        if self._reasoning_effort:
+            # gpt-oss/reasoning models burn completion tokens on hidden
+            # reasoning before the actual answer — low effort keeps that
+            # from eating the whole max_tokens budget on short replies.
+            kwargs["reasoning_effort"] = self._reasoning_effort
+
         resp = await self._client.chat.completions.create(
             model=self._model,
             max_tokens=max_tokens,
@@ -44,6 +61,7 @@ class OpenAIClient(LLMClient):
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
+            **kwargs,
         )
         return resp.choices[0].message.content
 
@@ -73,6 +91,16 @@ def get_llm_client() -> LLMClient:
         if not model:
             raise RuntimeError("OPENAI_MODEL is not set")
         _client = OpenAIClient(api_key, model)
+    elif provider == "groq":
+        api_key = os.environ.get("GROQ_API_KEY")
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY is not set")
+        model = os.environ.get("GROQ_MODEL")
+        if not model:
+            raise RuntimeError("GROQ_MODEL is not set")
+        _client = OpenAIClient(
+            api_key, model, base_url="https://api.groq.com/openai/v1", reasoning_effort="low"
+        )
     else:
         raise RuntimeError(f"unknown LLM_PROVIDER: {provider}")
 

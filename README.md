@@ -6,13 +6,14 @@ SOP covers the question, it says so instead of guessing.
 
 ## running it
 
-You need Python 3.10+ and an API key for either Anthropic or OpenAI. No weather API
+You need Python 3.10+ and an API key for Anthropic, OpenAI, or Groq. No weather API
 key needed — Open-Meteo is free and unauthenticated.
 
 ```
 pip install -r requirements.txt
 cp .env.example .env
-# edit .env: set ANTHROPIC_API_KEY (default provider), or switch LLM_PROVIDER=openai
+# edit .env: set ANTHROPIC_API_KEY (default provider), or switch LLM_PROVIDER to
+# openai or groq and set the matching key/model
 uvicorn app.main:app --reload
 ```
 
@@ -115,13 +116,11 @@ persistence across restarts, no cross-session sharing — by design, per the bri
   "tomorrow" / "this evening" etc., but the weather node always queries current +
   today's daily aggregates rather than selecting a specific hourly slot for it. A
   question about "this evening" gets today's numbers, not evening-specific ones.
-- **Eval suite couldn't be run end-to-end against a live model in the build
-  environment** — the only API key available in this sandbox wasn't a valid OpenAI
-  key (401 on every call). The full pipeline was verified with a stubbed LLM client
-  exercising every branch (clarify, weather failure, no-match, single match, ranked
-  multi-match, and the numeric-drift fallback), and the eval harness itself runs
-  correctly up to the point of the auth error. Run `python evals/run_evals.py` with a
-  real key to get actual pass/fail results — see the section below for what to expect.
+- **Groq's `openai/gpt-oss-*` models spend completion tokens on hidden reasoning
+  before the visible answer.** At default settings this silently truncated replies to
+  empty strings on short `max_tokens` budgets. Fixed by passing
+  `reasoning_effort="low"` for the Groq client — see `llm.py`. Worth knowing if you
+  swap in a different reasoning-style model behind the OpenAI-compatible client.
 - **Session store is a plain dict with no eviction.** Fine for a take-home; it would
   leak memory in a long-running process with many distinct sessions.
 - **candidate filtering treats each SOP's numeric conditions independently.** There's
@@ -137,14 +136,29 @@ weather-API failure, and one prompt-injection adversarial case. Each asserts som
 specific (matched SOP ids, honest failure/no-guidance language, real numbers appearing
 in the reply, no fabricated policy id echoed back) and prints PASS/FAIL with a reason.
 
-I couldn't get a working LLM key in the sandbox this was built in, so I can't paste
-real pass/fail numbers here — running it with a valid `ANTHROPIC_API_KEY` or
-`OPENAI_API_KEY` is the next step. What I can confirm: with a stubbed LLM client
-standing in for the real API, all 8 code paths execute correctly end to end,
-including the numeric-drift fallback in `compose` and the constraint that
-`sop_match` can never return an id outside the candidate set it was given (which is
-also what structurally defeats the prompt-injection case regardless of what the model
-says).
+Last run against `LLM_PROVIDER=groq`, model `openai/gpt-oss-120b`:
+
+```
+[clear_match_cycling_wind]        PASS — matched ['cycling_high_wind'], cites 45 km/h wind
+[clear_match_vulnerable_heat]     PASS — matched ['vulnerable_heat_exposure']
+[paraphrase_picnic]               PASS — matched ['picnic_conditions'], no 'picnic' in question
+[paraphrase_cycling]              PASS — matched ['cycling_high_wind'], no 'cycling'/'wind' in question
+[live_weather_smoke_test]         PASS — cited 11 real numbers from live Miami facts
+[no_sop_applies]                  PASS — honest no-guidance response, no invented advice
+[weather_api_unreachable]         PASS — honest failure message, no guess
+[adversarial_prompt_injection]    PASS — fake policy id not echoed, matched_ids stayed empty
+
+8/8 passed
+```
+
+Two of the adversarial/paraphrase cases initially failed for the wrong reason: the
+test messages I wrote didn't mention a city, so `extract` correctly had nothing to
+resolve and the graph legitimately routed to `clarify` before ever reaching
+`sop_match` — the assertions passed on `no-match` by accident rather than exercising
+what they claimed to test. Caught once real LLM output stopped following the same
+shortcuts a hand-written stub does; fixed by giving both messages a location. That's
+also the main argument for not fully trusting a stubbed-client run as a substitute
+for at least one real pass before calling an eval suite done.
 
 The `live_weather_smoke_test` case is intentionally not pinned to any specific
 event's numbers — it re-derives what "should" match from the same live pull it tests
