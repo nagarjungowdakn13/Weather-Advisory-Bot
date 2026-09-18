@@ -17,8 +17,11 @@ cp .env.example .env
 uvicorn app.main:app --reload
 ```
 
-Open http://127.0.0.1:8000 — the FastAPI app serves the frontend directly, there's no
-separate frontend server. Ask something like "is it safe to cycle in Denver today" or
+Live app: https://weather-advisory-bot-zvpm.onrender.com
+
+For local development, open http://127.0.0.1:8000 — the FastAPI app serves the frontend
+directly, there's no separate frontend server. Ask something like "is it safe to cycle in
+Denver today" or
 "good day for a picnic in Austin".
 
 To run the eval suite:
